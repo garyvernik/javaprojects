@@ -1,0 +1,220 @@
+package paypaltest;
+
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.List;
+
+public class AmortizationSchedule {
+
+	private long amountBorrowed = 0; // in cents
+	private double apr = 0d;
+	private int initialTermMonths = 0;
+
+	private final double monthlyInterestDivisor = 12d * 100d;
+	private double monthlyInterest = 0d;
+	private long monthlyPaymentAmount = 0; // in cents
+
+	private long calculateMonthlyPayment() {
+		// M = P * (J / (1 - (Math.pow(1/(1 + J), N))));
+		//
+		// Where:
+		// P = Principal
+		// I = Interest
+		// J = Monthly Interest in decimal form: I / (12 * 100)
+		// N = Number of months of loan
+		// M = Monthly Payment Amount
+		//
+
+		// calculate J
+		monthlyInterest = apr / monthlyInterestDivisor;
+
+		// this is 1 / (1 + J)
+		double tmp = Math.pow(1d + monthlyInterest, -1);
+
+		// this is Math.pow(1/(1 + J), N)
+		tmp = Math.pow(tmp, initialTermMonths);
+
+		// this is 1 / (1 - (Math.pow(1/(1 + J), N))))
+		tmp = Math.pow(1d - tmp, -1);
+
+		// M = P * (J / (1 - (Math.pow(1/(1 + J), N))));
+		double rc = amountBorrowed * monthlyInterest * tmp;
+
+		return Math.round(rc);
+	}
+
+	// The output should include:
+	// The first column identifies the payment number.
+	// The second column contains the amount of the payment.
+	// The third column shows the amount paid to interest.
+	// The fourth column has the current balance. The total payment amount and
+	// the interest paid fields.
+	public List<AmortizationScheduleItem> outputAmortizationSchedule() {
+		//
+		// To create the amortization table, create a loop in your program and
+		// follow these steps:
+		// 1. Calculate H = P x J, this is your current monthly interest
+		// 2. Calculate C = M - H, this is your monthly payment minus your
+		// monthly interest, so it is the amount of principal you pay for that
+		// month
+		// 3. Calculate Q = P - C, this is the new balance of your principal of
+		// your loan.
+		// 4. Set P equal to Q and go back to Step 1: You thusly loop around
+		// until the value Q (and hence P) goes to zero.
+		//
+
+		long balance = amountBorrowed;
+		int paymentNumber = 0;
+		BigDecimal totalPayments = new BigDecimal(0);
+		BigDecimal totalInterestPaid = new BigDecimal(0);
+
+		List<AmortizationScheduleItem> items = new ArrayList<AmortizationScheduleItem>();
+
+		items.add(new AmortizationScheduleItem(paymentNumber++, 0d, 0d,
+				((double) amountBorrowed) / 100d,
+				totalPayments.divide(new BigDecimal(100)),
+				totalInterestPaid.divide(new BigDecimal(100))));
+
+		final int maxNumberOfPayments = initialTermMonths + 1;
+		while ((balance > 0) && (paymentNumber <= maxNumberOfPayments)) {
+			// Calculate H = P x J, this is your current monthly interest
+			long curMonthlyInterest = Math.round(((double) balance)
+					* monthlyInterest);
+
+			// the amount required to payoff the loan
+			long curPayoffAmount = balance + curMonthlyInterest;
+
+			// the amount to payoff the remaining balance may be less than the
+			// calculated monthlyPaymentAmount
+			long curMonthlyPaymentAmount = Math.min(monthlyPaymentAmount,
+					curPayoffAmount);
+
+			// it's possible that the calculated monthlyPaymentAmount is 0,
+			// or the monthly payment only covers the interest payment - i.e. no
+			// principal
+			// so the last payment needs to payoff the loan
+			if ((paymentNumber == maxNumberOfPayments)
+					&& ((curMonthlyPaymentAmount == 0) || (curMonthlyPaymentAmount == curMonthlyInterest))) {
+				curMonthlyPaymentAmount = curPayoffAmount;
+			}
+
+			// Calculate C = M - H, this is your monthly payment minus your
+			// monthly interest,
+			// so it is the amount of principal you pay for that month
+			long curMonthlyPrincipalPaid = curMonthlyPaymentAmount
+					- curMonthlyInterest;
+
+			// Calculate Q = P - C, this is the new balance of your principal of
+			// your loan.
+			long curBalance = balance - curMonthlyPrincipalPaid;
+
+			totalPayments = totalPayments.add(new BigDecimal(curMonthlyPaymentAmount));
+			totalInterestPaid = totalInterestPaid.add(new BigDecimal(curMonthlyInterest));
+
+			items.add(new AmortizationScheduleItem(paymentNumber++,
+					((double) curMonthlyPaymentAmount) / 100d,
+					((double) curMonthlyInterest) / 100d,
+					((double) curBalance) / 100d,
+					totalPayments.divide(new BigDecimal(100)),
+					totalInterestPaid.divide(new BigDecimal(100))));
+
+			// Set P equal to Q and go back to Step 1: You thusly loop around
+			// until the value Q (and hence P) goes to zero.
+			balance = curBalance;
+		}
+
+		return items;
+	}
+
+	// GV no need to declare throwing runtime exception
+	public AmortizationSchedule(double amount, double interestRate, int years) {
+
+		if (!Validators.getBorrowAmountValidator().isValid(amount)
+				|| !Validators.getAprValidator().isValid(interestRate)
+				|| !Validators.getTermValidator().isValid((double) years)) {
+			throw new IllegalArgumentException();
+		}
+
+		amountBorrowed = Math.round(amount * 100);
+		apr = interestRate;
+		initialTermMonths = years * 12;
+
+		monthlyPaymentAmount = calculateMonthlyPayment();
+
+		// the following shouldn't happen with the available valid ranges
+		// for borrow amount, apr, and term; however, without range validation,
+		// monthlyPaymentAmount as calculated by calculateMonthlyPayment()
+		// may yield incorrect values with extreme input values
+		if (monthlyPaymentAmount > amountBorrowed) {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	public static void main(String[] args) {
+
+/*		String[] userPrompts = {
+				"Please enter the amount you would like to borrow: ",
+				"Please enter the annual percentage rate used to repay the loan: ",
+				"Please enter the term, in years, over which the loan is repaid: " };
+
+		double amount = 0;
+		double apr = 0;
+		int years = 0;
+
+		try {
+			amount = getValue(userPrompts[0],
+					Validators.getBorrowAmountValidator(),
+					"Please enter a positive value between "
+							+ Validators.BORROW_AMOUNT_RANGE.getMin() + " and "
+							+ Validators.BORROW_AMOUNT_RANGE.getMax() + ". ");
+			apr = getValue(userPrompts[1], Validators.getAprValidator(),
+					"Please enter a positive value between "
+							+ Validators.APR_RANGE.getMin() + " and "
+							+ Validators.APR_RANGE.getMax() + ". ");
+			years = getValue(
+					userPrompts[2],
+					Validators.getBorrowAmountValidator(),
+					"Please enter a positive integer between "
+							+ Validators.TERM_RANGE.getMin() + " and "
+							+ Validators.TERM_RANGE.getMax() + ". ").intValue();
+		} catch (IOException e) {
+			IOUtils.print("An IOException was encountered. Terminating program.\n");
+			return;
+		}
+*/
+		try {
+			//AmortizationSchedule as = new AmortizationSchedule(amount, apr, years);
+			AmortizationSchedule as = new AmortizationSchedule(1000000000000d, 100d, 33);
+			IOUtils.printSchedule(as.outputAmortizationSchedule());
+		} catch (IllegalArgumentException e) {
+			IOUtils.print("Unable to process the values entered. Terminating program.\n");
+		}
+	}
+
+	private static Double getValue(String promptMessage,
+			Validatable<Double> validator, String invalidMessage)
+			throws IOException {
+		boolean isValid = false;
+		double amount = 0;
+		while (!isValid) {
+			String line = IOUtils.readLine(promptMessage);
+
+			try {
+				amount = Double.valueOf(line);
+				if (validator.isValid(amount)) {
+					isValid = true;
+				}
+			} catch (NumberFormatException e) {
+				IOUtils.print("An invalid value was entered.\n");
+			}
+
+			if (!isValid) {
+				IOUtils.print(invalidMessage);
+			}
+		}
+
+		return amount;
+	}
+}
