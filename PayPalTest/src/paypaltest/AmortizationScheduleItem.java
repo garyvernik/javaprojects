@@ -2,6 +2,9 @@ package paypaltest;
 
 import java.math.BigDecimal;
 
+/**
+ * Each item in the amortization schedule ("monthly statement")
+ */
 public class AmortizationScheduleItem {
 
 	private int paymentNumber;
@@ -27,7 +30,7 @@ public class AmortizationScheduleItem {
 		return paymentNumber;
 	}
 
-	public void setPaymentNumber(int paymentNumber) {
+	public void setPaymentNumber(final int paymentNumber) {
 		this.paymentNumber = paymentNumber;
 	}
 
@@ -35,7 +38,7 @@ public class AmortizationScheduleItem {
 		return paymentAmount;
 	}
 
-	public void setPaymentAmount(BigDecimal paymentAmount) {
+	public void setPaymentAmount(final BigDecimal paymentAmount) {
 		this.paymentAmount = paymentAmount;
 	}
 
@@ -43,7 +46,7 @@ public class AmortizationScheduleItem {
 		return paymentInterest;
 	}
 
-	public void setPaymentInterest(BigDecimal paymentInterest) {
+	public void setPaymentInterest(final BigDecimal paymentInterest) {
 		this.paymentInterest = paymentInterest;
 	}
 
@@ -51,7 +54,7 @@ public class AmortizationScheduleItem {
 		return currentBalance;
 	}
 
-	public void setCurrentBalance(BigDecimal currentBalance) {
+	public void setCurrentBalance(final BigDecimal currentBalance) {
 		this.currentBalance = currentBalance;
 	}
 
@@ -59,7 +62,7 @@ public class AmortizationScheduleItem {
 		return totalPayments;
 	}
 
-	public void setTotalPayments(BigDecimal totalPayments) {
+	public void setTotalPayments(final BigDecimal totalPayments) {
 		this.totalPayments = totalPayments;
 	}
 
@@ -67,7 +70,7 @@ public class AmortizationScheduleItem {
 		return totalInterestPaid;
 	}
 
-	public void setTotalInterestPaid(BigDecimal totalInterestPaid) {
+	public void setTotalInterestPaid(final BigDecimal totalInterestPaid) {
 		this.totalInterestPaid = totalInterestPaid;
 	}
 

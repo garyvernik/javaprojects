@@ -7,17 +7,20 @@ import java.util.List;
 
 public class AmortizationSchedule {
 
+    // TODO GV: I am using BigDecimal pretty liberally. This works but comes
+    // at performance price. Can I use long instead in some cases?
+    
     private static final BigDecimal HUNDRED = new BigDecimal(100);
     private static final int CENTS = 100;
     private static final int MONTHS_YEAR = 12;
+    private static final double MONTHLY_INTEREST_DIVISOR = 12d * CENTS;
 
-    private long amountBorrowed = 0; // in cents
-    private double apr = 0d;
-    private int initialTermMonths = 0;
+    private final long amountBorrowed; // in cents
+    private final double apr;
+    private final int initialTermMonths;
 
-    private final double monthlyInterestDivisor = 12d * CENTS;
-    private double monthlyInterest = 0d;
-    private BigDecimal monthlyPaymentAmount = BigDecimal.ZERO; // in cents
+    private double monthlyInterest;
+    private final BigDecimal monthlyPaymentAmount; // in cents
 
     private long calculateMonthlyPayment() {
         // M = P * (J / (1 - (Math.pow(1/(1 + J), N))));
@@ -31,7 +34,7 @@ public class AmortizationSchedule {
         //
 
         // calculate J
-        monthlyInterest = apr / monthlyInterestDivisor;
+        monthlyInterest = apr / MONTHLY_INTEREST_DIVISOR;
 
         // this is 1 / (1 + J)
         double tmp = Math.pow(1d + monthlyInterest, -1);
@@ -44,6 +47,10 @@ public class AmortizationSchedule {
 
         // M = P * (J / (1 - (Math.pow(1/(1 + J), N))));
         double rc = amountBorrowed * monthlyInterest * tmp;
+        
+        // GV: round the ceiling of the number. It becomes important when 
+        // dealing with the large numbers where the fraction of a cent makes the
+        // difference between reducing and increasing the debt
         return Math.round(Math.ceil(rc));
     }
 
@@ -53,6 +60,11 @@ public class AmortizationSchedule {
     // The third column shows the amount paid to interest.
     // The fourth column has the current balance. The total payment amount and
     // the interest paid fields.
+    //
+    // GV: separated the business logic from presentation. Now this method 
+    // returns the list of monthly amortization schedule items which can be
+    // handled (printed/processed/etc.) later on. 
+    // GV: all IO operations are moved into a separate utility class
     public List<AmortizationScheduleItem> outputAmortizationSchedule() {
         //
         // To create the amortization table, create a loop in your program and
@@ -67,6 +79,9 @@ public class AmortizationSchedule {
         // until the value Q (and hence P) goes to zero.
         //
 
+        // GV: borrowing ~1/3 of US Federal Budget ($1T) for million years
+        // under gangester's 100% rate can easily overflow long for payments and 
+        // interest paid. Using BigDecimal.
         BigDecimal balance = new BigDecimal(amountBorrowed);
         int paymentNumber = 0;
         BigDecimal totalPayments = BigDecimal.ZERO;
@@ -75,14 +90,14 @@ public class AmortizationSchedule {
         List<AmortizationScheduleItem> items = new ArrayList<AmortizationScheduleItem>();
 
         items.add(new AmortizationScheduleItem(paymentNumber++,
-                BigDecimal.ZERO, BigDecimal.ZERO, (new BigDecimal(
-                        amountBorrowed)).divide(HUNDRED), totalPayments
-                        .divide(HUNDRED), totalInterestPaid.divide(HUNDRED)));
+                BigDecimal.ZERO, BigDecimal.ZERO, 
+                (new BigDecimal(amountBorrowed)).divide(HUNDRED), 
+                totalPayments.divide(HUNDRED), totalInterestPaid.divide(HUNDRED)));
 
         final int maxNumberOfPayments = initialTermMonths + 1;
         BigDecimal bdMonthlyInterest = new BigDecimal(monthlyInterest);
-        while ((balance.compareTo(BigDecimal.ZERO) > 0)
-                && (paymentNumber <= maxNumberOfPayments)) {
+        while (balance.compareTo(BigDecimal.ZERO) > 0
+                && paymentNumber <= maxNumberOfPayments) {
             // Calculate H = P x J, this is your current monthly interest
             BigDecimal curMonthlyInterest = balance.multiply(bdMonthlyInterest);
 
@@ -91,24 +106,24 @@ public class AmortizationSchedule {
 
             // the amount to payoff the remaining balance may be less than the
             // calculated monthlyPaymentAmount
-            BigDecimal curMonthlyPaymentAmount = monthlyPaymentAmount
-                    .min(curPayoffAmount);
+            BigDecimal curMonthlyPaymentAmount = 
+                    monthlyPaymentAmount.min(curPayoffAmount);
 
             // it's possible that the calculated monthlyPaymentAmount is 0,
             // or the monthly payment only covers the interest payment - i.e. no
             // principal
             // so the last payment needs to payoff the loan
-            if ((paymentNumber == maxNumberOfPayments)
-                    && ((curMonthlyPaymentAmount.compareTo(BigDecimal.ZERO) == 0) 
-                    		|| (curMonthlyPaymentAmount == curMonthlyInterest))) {
+            if (paymentNumber == maxNumberOfPayments
+                    && (curMonthlyPaymentAmount.equals(BigDecimal.ZERO) 
+                        || curMonthlyPaymentAmount.equals(curMonthlyInterest))) {
                 curMonthlyPaymentAmount = curPayoffAmount;
             }
 
             // Calculate C = M - H, this is your monthly payment minus your
             // monthly interest,
             // so it is the amount of principal you pay for that month
-            BigDecimal curMonthlyPrincipalPaid = curMonthlyPaymentAmount
-                    .subtract(curMonthlyInterest);
+            BigDecimal curMonthlyPrincipalPaid = 
+            		curMonthlyPaymentAmount.subtract(curMonthlyInterest);
 
             // Calculate Q = P - C, this is the new balance of your principal of
             // your loan.
@@ -118,10 +133,11 @@ public class AmortizationSchedule {
             totalInterestPaid = totalInterestPaid.add(curMonthlyInterest);
 
             items.add(new AmortizationScheduleItem(paymentNumber++,
-                    curMonthlyPaymentAmount.divide(HUNDRED), curMonthlyInterest
-                            .divide(HUNDRED), curBalance.divide(HUNDRED),
-                    totalPayments.divide(HUNDRED), totalInterestPaid
-                            .divide(HUNDRED)));
+                    curMonthlyPaymentAmount.divide(HUNDRED), 
+                    curMonthlyInterest.divide(HUNDRED), 
+                    curBalance.divide(HUNDRED),
+                    totalPayments.divide(HUNDRED), 
+                    totalInterestPaid.divide(HUNDRED)));
 
             // Set P equal to Q and go back to Step 1: You thusly loop around
             // until the value Q (and hence P) goes to zero.
@@ -134,12 +150,9 @@ public class AmortizationSchedule {
     /**
      * Constructor for AmortizationSchedule
      * 
-     * @param amount
-     *            amount to borrow
-     * @param interestRate
-     *            rate
-     * @param years
-     *            terms
+     * @param amount amount to borrow
+     * @param interestRate rate
+     * @param years terms
      * @throws IllegalArgumentException
      */
     public AmortizationSchedule(final double amount, final double interestRate, final int years) {
@@ -167,7 +180,7 @@ public class AmortizationSchedule {
 
     public static void main(String[] args) {
 
-        String[] userPrompts = {
+        final String[] userPrompts = {
                 "Please enter the amount you would like to borrow: ",
                 "Please enter the annual percentage rate used to repay the loan: ",
                 "Please enter the term, in years, over which the loan is repaid: " };
@@ -198,12 +211,10 @@ public class AmortizationSchedule {
         }
 
         try {
-            AmortizationSchedule as = new AmortizationSchedule(amount, apr,
-                    years);
+            AmortizationSchedule as = new AmortizationSchedule(amount, apr, years);
             // AmortizationSchedule as = new
             // AmortizationSchedule(1000000000000d, 100d, 33);
-            // AmortizationSchedule as = new AmortizationSchedule(200000d, 6.3d,
-            // 20);
+            // AmortizationSchedule as = new AmortizationSchedule(200000d, 6.3d, 20);
             IOUtils.printSchedule(as.outputAmortizationSchedule());
         } catch (IllegalArgumentException e) {
             IOUtils.print("Unable to process the values entered. Terminating program.\n");
@@ -211,7 +222,7 @@ public class AmortizationSchedule {
     }
 
     private static Double getValue(final String promptMessage,
-    		final Validatable<Double> validator, final String invalidMessage)
+            final Validatable<Double> validator, final String invalidMessage)
             throws IOException {
         boolean isValid = false;
         double amount = 0;

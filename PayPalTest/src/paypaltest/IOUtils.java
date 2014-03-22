@@ -7,6 +7,9 @@ import java.io.InputStreamReader;
 import java.util.IllegalFormatException;
 import java.util.List;
 
+/**
+ * IO Utils class
+ */
 public final class IOUtils {
 	
 	private static Console console = System.console();
@@ -32,7 +35,7 @@ public final class IOUtils {
 		printf("%s", s);
 	}
 	
-	public static String readLine(String userPrompt) throws IOException {
+	public static String readLine(final String userPrompt) throws IOException {
 		String line = "";
 		
 		if (console != null) {
@@ -44,8 +47,9 @@ public final class IOUtils {
 			print(userPrompt);
 			line = bufferedReader.readLine();
 		}
-		line.trim();
-		return line;
+		// GV: this will not trim the returned result
+		//line.trim();
+		return line == null ? "" : line.trim();
 	}
 
 	public static void printSchedule(List<AmortizationScheduleItem> items) {

@@ -224,7 +224,7 @@ public class AmortizationScheduleOrig {
 		double apr = 0;
 		int years = 0;
 		
-		for (int i = 0; i< userPrompts.length; ) {
+		for (int i = 0; i< userPrompts.length;) {
 			String userPrompt = userPrompts[i];
 			try {
 				line = readLine(userPrompt);

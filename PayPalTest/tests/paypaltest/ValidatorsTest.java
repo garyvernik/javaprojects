@@ -39,11 +39,4 @@ public class ValidatorsTest {
 		assertFalse(Validators.getTermValidator().isValid(1000000.00001));
 	}
 	
-	
-	@Test 
-	public void testBig() {
-		BigDecimal a = new BigDecimal(0);
-		a.add(new BigDecimal(100));
-		System.out.print(a);
-	}
 }
